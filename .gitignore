@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[codz]
@@ -282,4 +281,3 @@ items.json
 *.key
 *.pem
 credentials.json
->>>>>>> b97a272 (Initial commit: Data layer for IXome, an AI-driven smart home support company using dealer-exclusive data for Lutron and Control4. Includes Pinecone embedding scripts (load_to_pinecone.py), PostgreSQL checks (check_db.py), notebooks for embeddings, and knowledge graphs.)
