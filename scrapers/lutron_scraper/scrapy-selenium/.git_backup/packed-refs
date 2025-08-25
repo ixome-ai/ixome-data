@@ -1,0 +1,20 @@
+# pack-refs with: peeled fully-peeled sorted 
+2e557f6f2221f2609b5b6c6cf3b609a28387d918 refs/remotes/origin/develop
+24294fc32c45d327d2aef7e7591fd65e2b72b40d refs/remotes/origin/feat/tests
+482b696e6787f4d38a973b52b9a8aeb645fd9433 refs/remotes/origin/fix/tests
+f8cb714e4d83eb5c400e0ea516fb4b7380dcfe4d refs/remotes/origin/fix/travis-build
+bab639fa092f7675a6e88dde1e8ab011baeadae2 refs/remotes/origin/master
+d7ac32d2c0b076e19949afae43783a56c11450e1 refs/tags/0.0.1
+^2e0f8a2780c22a7cf8ca7548c2582f8bcde33371
+5e104a219722491cf9c28397dd462aa843b6301e refs/tags/0.0.2
+^6c1ef391bd8f62d83d42a5c7c83eab6c60947b16
+dc1ec8c1e45502a6a84b8b200b95bd94adf56354 refs/tags/0.0.3
+^7b01d7a325bc1761ab2c7ad13505db64510dfa1b
+9951c1f67975e5e30e1cfdf565d802b1d23f822f refs/tags/0.0.4
+^7b1bc9285ff026113985dbb3993db34f7acdf312
+c79446debad950a9dd656abfcd3c02da0e4168a1 refs/tags/0.0.5
+^fa34af28c975e2b2e4a05b7fa35c343d391e9d9e
+ea4daaae312c24cbf789781b9eff8a38785edb4e refs/tags/0.0.6
+^3045ad056bdcace192f58b1e7d622a5bdee03bf7
+cd2fa78d49f04d3e35fe7152f7c864e20785d6fb refs/tags/0.0.7
+^8229161ebaadd7741645d97a4d1116d81bbd0add

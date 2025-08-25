@@ -1,0 +1,83 @@
+# Python caches and temps
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+.venv/
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Node.js
+node_modules/
+npm-debug.log
+yarn-debug.log
+yarn-error.log
+
+# Binaries and large files
+*.zip
+*.pdf
+chromedriver-linux64
+chromedriver-linux64.zip
+
+# Jupyter/IPython
+.ipynb_checkpoints/
+*.ipynb_checkpoints
+
+# Logs and databases
+*.log
+*.sql
+*.sqlite
+
+# OS generated
+.DS_Store
+Thumbs.db
+
+# Editor directories
+.vscode/
+.idea/
+
+# Add more if needed (e.g., sensitive .env files)
+.env
+secrets.py
+
+# Nuxt.js
+.nuxt/
+dist/
+
+# Strapi
+dist/
+build/
+.cache/
+.strapi/
+exports/
+
+# Flask/Agents
+*.db
+
+# Scrapy
+.scrapy/
+eggs/
+logs/
+items.json
+
+# Data/Pinecone
+*.pkl
+*.h5
+
+# Additional env/secrets
+.env.local
+.env.production
+*.key
+*.pem
+credentials.json
+# Ixome data-specific
+security/
+snapone_profile/
+page_*.html
+logs/
+node_modules/
+__pycache__/
+*.pyc
