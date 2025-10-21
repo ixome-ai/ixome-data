@@ -1,23 +1,37 @@
 import os
 import subprocess
 import json
-from dotenv import load_dotenv  # Fits your existing env loading in chat_agent.py
+from dotenv import load_dotenv
 import sys
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))  # Root path for core/ 
-from langgraph.graph import StateGraph, END  # Fits LangGraph 0.2.20 deps
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+from langgraph.graph import StateGraph, END
 from typing import Dict, List, TypedDict
-from langchain_core.messages import HumanMessage
-from langchain_openai import OpenAIEmbeddings  # Embeddings fit (dynamic for variable data)
-from openai import OpenAI  # Fits your client for filter LLM
-from pinecone import Pinecone as PineconeClient  # Fits your pc/init in chat_agent.py
-from core.db import insert_dealer_info, query_sqlite  # Hybrid fit from db.py
+from langchain_openai import OpenAIEmbeddings
+from openai import OpenAI
+from pinecone import Pinecone as PineconeClient
+import psycopg2  # PG direct (replace core.db)
 
 load_dotenv()
 
-embeddings = OpenAIEmbeddings(model="text-embedding-ada-002")  # Fits your embeddings; dynamic/variable length (Grok 4 placeholder: model="grok-4" when API ready)
-openai_client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))  # For filter LLM (fits your client in chat_agent.py)
+embeddings = OpenAIEmbeddings(model="text-embedding-ada-002")
+openai_client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 pc = PineconeClient(api_key=os.getenv("PINECONE_API_KEY"))
-index = pc.Index("troubleshooter-index")  # Fits your index
+index = pc.Index("troubleshooter-index")
+
+def get_pg_connection():
+    return psycopg2.connect(dbname=os.getenv("PG_DBNAME"), user=os.getenv("PG_USER"), password=os.getenv("PG_PASSWORD"), host=os.getenv("PG_HOST", "localhost"), port=os.getenv("PG_PORT", 5432))
+
+def insert_dealer_info(brand, info, component):
+    with get_pg_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute("INSERT INTO dealer_info (brand, solution, product) VALUES (%s, %s, %s)", (brand, info, component))
+            conn.commit()
+
+def query_sqlite(brand, keyword):  # Stub; use PG query
+    with get_pg_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT solution FROM dealer_info WHERE brand=%s AND solution ILIKE %s LIMIT 1", (brand, f"%{keyword}%"))
+            return cur.fetchone()[0] if cur.fetchone() else 'No match'
 
 class State(TypedDict):
     messages: List[str]
@@ -25,52 +39,51 @@ class State(TypedDict):
     filtered_data: List[Dict[str, str]]
 
 def scrape_agent(state: State) -> State:
-    scraped_data = []  # Collect yielded items from JSON
-    # Run Scrapy via subprocess (fits your nested path; avoids import issues, preserves spider 100%)
-    spider_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'scrapy-selenium', 'lutron_scraper', 'lutron_scraper'))  # Change dir to your project root for run
-    output_file = '/tmp/scraped_items.json'  # Temp JSON in /tmp to avoid dir issues
+    scraped_data = []
+    spider_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'scrapers', 'lutron_scraper', 'lutron_scraper'))
+    output_file = '/tmp/lutron_homeworks_items.jsonl'
     try:
-        subprocess.call(['scrapy', 'crawl', 'lutron', '-o', output_file], cwd=spider_dir)  # Run spider, output to JSON (name 'lutron' fits your bot)
+        current_dir = os.getcwd()
+        os.chdir(spider_dir)
+        subprocess.call(['scrapy', 'crawl', 'lutron_homeworks', '-o', output_file], cwd=spider_dir)
         with open(output_file, 'r') as f:
-            scraped_data = json.load(f)  # Load yielded items (fits your spider yield dicts)
-        os.remove(output_file)  # Clean up
-        print("Debug: Scraped data keys and sample: ", scraped_data[0] if scraped_data else "No items scraped")  # Debug for keys
+            scraped_data = [json.loads(line) for line in f if line.strip()]
+        os.remove(output_file)
+        os.chdir(current_dir)
+        print("Debug: Scraped sample: ", scraped_data[0] if scraped_data else "No items")
     except Exception as e:
-        print(f"Scrapy run error: {e}")  # Log; continue with empty for test
-    return {"scraped_data": scraped_data, "messages": state["messages"] + ["Scraped Lutron data"]}
+        print(f"Scrapy error: {e}")
+    return {"scraped_data": scraped_data, "messages": state["messages"] + ["Scraped Lutron HomeWorks data"]}
 
 def filter_agent(state: State) -> State:
-    filtered_data = []  # Only important items (relevant to smart home/racks)
+    filtered_data = []
     for item in state["scraped_data"]:
-        text = item.get('solution', ' '.join(str(v) for v in item.values()))  # Dynamic text
-        # Use LLM to filter important (fits goal: look at everything, add only relevant)
+        text = item.get('solution', ' '.join(str(v) for v in item.values()))
         response = openai_client.chat.completions.create(
             model="gpt-4o-mini",
-            messages=[{"role": "system", "content": "You are a filter for Lutron troubleshooting data. Return 'yes' if relevant to smart home automation, equipment racks, switches, receivers, matrix amps, audio, video, routers, TVs, cameras; else 'no'."},
-                      {"role": "user", "content": text}]
+            messages=[{"role": "system", "content": "Filter for Lutron HomeWorks data. 'yes' if relevant to smart home lighting, automation, switches, integration; else 'no'."},
+                      {"role": "user", "content": text[:2000]}]  # Trunc for LLM
         )
         if response.choices[0].message.content.lower().strip() == 'yes':
             filtered_data.append(item)
-    return {"filtered_data": filtered_data, "messages": state["messages"] + [f"Filtered to {len(filtered_data)} important items"]}
+    return {"filtered_data": filtered_data, "messages": state["messages"] + [f"Filtered to {len(filtered_data)} items"]}
 
 def load_agent(state: State) -> State:
     for item in state["filtered_data"]:
-        info = item.get('solution', ' '.join(str(v) for v in item.values()))  # Use 'solution' or concat
-        component = item.get('product', 'unknown')  # From your debug keys
-        insert_dealer_info("Lutron", info, component)  # Hybrid to SQLite (full text, no limit)
-        # Dynamic upsert to Pinecone (batch for efficiency, variable lengths)
-        emb = embeddings.embed_query(info)  # Embed full for search
-        metadata_solution = info[:40000]  # Truncate to <40KB for metadata limit (fits Pinecone)
+        info = item.get('solution', '')
+        component = item.get('product', 'HomeWorks')
+        insert_dealer_info("Lutron", info, component)
+        emb = embeddings.embed_query(info)
+        metadata_solution = info[:40000]
         index.upsert([{"id": str(hash(info)), "values": emb, "metadata": {"solution": metadata_solution, "brand": "Lutron", "issue": item.get('issue', ''), "category": item.get('category', ''), "url": item.get('url', ''), "product": component}}])
-    return {"messages": state["messages"] + ["Loaded important data to hybrid DB"]}
+    return {"messages": state["messages"] + ["Loaded to PG/Pinecone"]}
 
 def query_agent(state: State) -> State:
-    # Hybrid query (fits retrieval in chat_agent.py)
-    emb = embeddings.embed_query("Lutron rack issue")
+    emb = embeddings.embed_query("HomeWorks lighting issue")
     results = index.query(vector=emb, top_k=1, include_metadata=True).get('matches', [])
-    pinecone_result = results[0].get('metadata', {}).get('solution', '') if results else 'No Pinecone matches'
-    sqlite_result = query_sqlite("Lutron", "audio")  # Example; dynamic from input/issue later
-    combined = f"Pinecone: {pinecone_result}\nSQLite: {sqlite_result}"
+    pinecone_result = results[0].get('metadata', {}).get('solution', '') if results else 'No match'
+    pg_result = query_sqlite("Lutron", "lighting")
+    combined = f"Pinecone: {pinecone_result[:100]}...\nPG: {pg_result[:100]}..."
     return {"messages": state["messages"] + [combined]}
 
 graph = StateGraph(State)
@@ -85,8 +98,7 @@ graph.add_edge("query", END)
 graph.set_entry_point("scrape")
 app = graph.compile()
 
-# Test block (run standalone: python graphs/lutron_basic_graph.py; runs crawl, prints state with scraped + hybrid)
 if __name__ == "__main__":
     initial_state = {"messages": [], "scraped_data": [], "filtered_data": []}
     result = app.invoke(initial_state)
-    print(result)  # Output: {'messages': ['Scraped Lutron data', 'Filtered to N important items', 'Loaded important data to hybrid DB', 'Pinecone: ... \nSQLite: ...'], 'scraped_data': [...], 'filtered_data': [...]}
+    print(result)
